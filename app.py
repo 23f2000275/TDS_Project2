@@ -29,7 +29,7 @@ def task_breakdown(task: str) -> str:
     """Break down a task into smaller programmable steps using Google GenAI."""
     client = genai.Client(api_key= os.getenv("GEMINI_API_KEY"))
 
-    prompt_file = os.path.join('prompts', "step_prompt.txt")
+    prompt_file = "step_prompt.txt" # os.path.join('prompts', "step_prompt.txt")
     with open(prompt_file, 'r') as f:
         task_breakdown_prompt = f.read()
 
@@ -165,7 +165,6 @@ tools = [
     }
 ]
 
- # fallback
 
 async def run_python_code_with_correction(
     initial_code: str,
@@ -264,29 +263,6 @@ async def upload_files(files: List[UploadFile] = File(...)):
 
     # Get task breakdown steps from GenAI
     steps = task_breakdown(task_text)
-
-    # TODO: You might want to parse steps or pass as is to LLM for code generation
-    # For demonstration, we just send steps as user input
-
-    # Prepare the prompt for code generation (simplified)
-#     code_gen_prompt = f"""
-# You are given the following broken down programming steps:
-
-# {steps}
-
-# Generate a complete Python program that implements these steps.
-# Use pre-coded tools like scrape_website() and get_relevant_data() if the task involves web scraping.
-# """
-
-# Call LLM to generate code (synchronously using httpx or your preferred client)
-# Using genai.Client here for consistency
-    # client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-    # response = client.models.generate_content(
-    #     model="gemini-2.0-flash-lite",
-    #     contents=[code_gen_prompt],
-    # )
-    # generated_code = response.text
-
 
     # Run the generated code with correction loop
     # run_result = await asyncio.to_thread(run_python_code_with_correction, generated_code)
