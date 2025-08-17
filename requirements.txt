@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+google-genai
+httpx
+beautifulsoup4
+playwright
+python-multipart
+httpx
+pandas
+numpy
+pyarrow
+duckdb
+matplotlib
+seaborn
+pymupdf
+aiofiles
+lxml
