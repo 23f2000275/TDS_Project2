@@ -260,12 +260,18 @@ async def upload_files(files: List[UploadFile] = File(...)):
         else:
             try:
                 file_text = content.decode("utf-8", errors="ignore")
+                file_content=file_text
             except Exception:
                 file_text = "[UNREADABLE FILE]"
+                file_content=file_text
+            except UnicodeDecodeError:
+            # Binary file like image, keep base64 encoded string for safe transport/storage
+                import base64
+                file_content = base64.b64encode(content).decode('utf-8')
             other_files.append({
                 "filename": file.filename,
                 "content_type": content_type,
-                "content": file_text
+                "content": file_content
             })
 
     if not questions_text:
