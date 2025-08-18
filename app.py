@@ -80,7 +80,7 @@ def extract_python_code_block(markdown: str) -> str:
         return match.group(1).strip()
     return markdown.strip() 
 
-async def query_llm_for_code(task_steps: List[str], tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+async def query_llm_for_code(task_steps: List[str], tools: List[Dict[str, Any]], file_context: str = "") -> Dict[str, Any]:
     """
     Query the LLM to generate Python code for each broken down step.
     Pass available tools for web scraping, etc.
@@ -89,6 +89,8 @@ async def query_llm_for_code(task_steps: List[str], tools: List[Dict[str, Any]])
         "You are a data analysis agent. Here are the broken down steps of a data analysis task:\n\n" +
         "\n".join(f"{i+1}. {step}" for i, step in enumerate(task_steps)) +
         "\n\nGenerate a complete executable error-free Python program that performs these steps."+
+        "\n\nThe following files were uploaded and may be relevant to the task:\n\n" +
+        (file_context or "[No files provided]") +
         " Use the provided tools (e.g. scrape_website, get_relevant_data) only if necessary."+
         " Use the following libraries only to perform the tasks: beautifulsoup, playwright, pandas, numpy, pyarrow, duckdb, matplotlib, seaborn, pymupdf, json, re, base64 and datetime. Avoid using libraries that are not listed."+
         " Ensure the code provides the response in the correct format specified. Do not provide explanations for the code. Give only the code. Do not make anything up. Do not try to solve the task. Ensure that the response format is correct."
@@ -249,11 +251,21 @@ async def upload_files(files: List[UploadFile] = File(...)):
 
         if file.filename == "questions.txt":
             questions_text = content.decode("utf-8")
+        # else:
+        #     other_files.append({
+        #         "filename": file.filename,
+        #         "content_type": content_type,
+        #         "content_bytes": content
+        #     })
         else:
+            try:
+                file_text = content.decode("utf-8", errors="ignore")
+            except Exception:
+                file_text = "[UNREADABLE FILE]"
             other_files.append({
                 "filename": file.filename,
                 "content_type": content_type,
-                "content_bytes": content
+                "content": file_text
             })
 
     if not questions_text:
@@ -263,10 +275,13 @@ async def upload_files(files: List[UploadFile] = File(...)):
 
     # Get task breakdown steps from GenAI
     steps = task_breakdown(task_text)
+    file_context = "\n\n".join(
+        f"Filename: {f['filename']}\nContent:\n{f['content']}" for f in other_files
+    )
 
     # Run the generated code with correction loop
     # run_result = await asyncio.to_thread(run_python_code_with_correction, generated_code)
-    llm_generated_code = await query_llm_for_code(steps, tools)
+    llm_generated_code = await query_llm_for_code(steps, tools, file_context)
 
 # Run the code and retry on failure
     run_result = await run_python_code_with_correction(llm_generated_code)
