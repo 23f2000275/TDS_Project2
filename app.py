@@ -247,7 +247,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
         content_type = file.content_type
         content = await file.read()
 
-        if file.filename == "question.txt":
+        if file.filename == "questions.txt":
             questions_text = content.decode("utf-8")
         else:
             other_files.append({
