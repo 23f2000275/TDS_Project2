@@ -9,7 +9,7 @@ import tempfile
 import asyncio
 from typing import List, Dict, Any
 import httpx
-
+from playwright.async_api import async_playwright
 
 
 app = FastAPI(redirect_slashes=False)
