@@ -253,7 +253,8 @@ async def upload_files(request: Request):
 
     for field_name, upload in form.items():
         logger.info(f"FIELD: {field_name}, VALUE TYPE: {type(upload)}")
-        if isinstance(upload, UploadFile):
+        # if isinstance(upload, UploadFile):
+        if hasattr(upload, 'filename') and hasattr(upload, 'file'):
             logger.info(f"Upload file received: {upload.filename}")
             content_bytes = await upload.read()
             logger.info(f"Field name: {field_name}, Uploaded filename: {upload.filename}")
@@ -261,6 +262,7 @@ async def upload_files(request: Request):
             if field_name in ["questions.txt" , 'question.txt']:
                 try:
                     questions_text = content_bytes.decode("utf-8") # .strip()
+                    logger.info(f"[Raw questions.txt]: {repr(questions_text)}")
                     logger.info(f"Received questions.txt:\n{questions_text}")
                     logger.info(f"questions.txt size: {len(content_bytes)} bytes")
                 except Exception:
