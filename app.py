@@ -272,7 +272,7 @@ async def upload_files(request: Request):
                 "content_type": upload.content_type,
                 "content": file_content
             })
-    print(files)
+    # print(files)
     if not questions_text:
         return JSONResponse(status_code=400, content={"error": "questions.txt is required and must be a valid UTF-8 text file."})
 
