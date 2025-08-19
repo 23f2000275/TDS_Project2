@@ -252,7 +252,9 @@ async def upload_files(request: Request):
     questions_text = None
 
     for field_name, upload in form.items():
+        logger.info(f"FIELD: {field_name}, VALUE TYPE: {type(upload)}")
         if isinstance(upload, UploadFile):
+            logger.info(f"Upload file received: {upload.filename}")
             content_bytes = await upload.read()
             logger.info(f"Field name: {field_name}, Uploaded filename: {upload.filename}")
             # Check if this is the required questions.txt file
