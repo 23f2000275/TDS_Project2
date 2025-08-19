@@ -254,14 +254,15 @@ async def upload_files(request: Request):
     for field_name, upload in form.items():
         if isinstance(upload, UploadFile):
             content_bytes = await upload.read()
-
+            logger.info(f"Field name: {field_name}, Uploaded filename: {upload.filename}")
             # Check if this is the required questions.txt file
             if field_name in ["questions.txt" , 'question.txt']:
                 try:
                     questions_text = content_bytes.decode("utf-8").strip()
                     logger.info(f"Received questions.txt:\n{questions_text}")
+                    logger.info(f"questions.txt size: {len(content_bytes)} bytes")
                 except Exception:
-                    logger.error("questions.txt must be a UTF-8 text file.")
+                    logger.error(f"UTF-8 decode error in questions.txt: {e}")
                     return JSONResponse(status_code=400, content={"error": "questions.txt must be a UTF-8 text file."})
                 continue
 
@@ -286,6 +287,7 @@ async def upload_files(request: Request):
                 })
     # print(files)
     if not questions_text:
+        logger.warning("questions.txt is empty or only whitespace.")
         return JSONResponse(status_code=400, content={"error": "questions.txt is required and must be a valid UTF-8 text file."})
 
     # Task breakdown
