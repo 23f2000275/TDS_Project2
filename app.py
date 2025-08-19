@@ -9,6 +9,7 @@ import tempfile
 import asyncio
 from typing import List, Dict, Any
 import httpx
+import json
 # from playwright.async_api import async_playwright
 
 
@@ -239,57 +240,114 @@ async def root():
     return {"message": "Hello! Send POST to /api/ with files."}
 
 @app.post("/api/")
-async def upload_files(request: Request):
-    form = await request.form()
-    files = []
-    questions_text = None
+async def upload_files(
+    questions_txt: UploadFile = File(..., description="Required questions.txt"),
+    files: List[UploadFile] = File(default=[], description="additional files")
+):
+    # Process questions_txt (supporting both .txt and .json)
+    filename = questions_txt.filename.lower()
+    try:
+        content_bytes = await questions_txt.read()
+        # if filename.endswith(".json"):
+        #     parsed_json = json.loads(content_bytes.decode("utf-8"))
+        #     questions_text = json.dumps(parsed_json, indent=2)
+        if filename.endswith(".txt"):
+            questions_text = content_bytes.decode("utf-8").strip()
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="questions_txt must be a .txt"
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to process questions_txt: {str(e)}"
+        )
 
-    for field_name, upload in form.items():
-        if isinstance(upload, UploadFile):
-            content_bytes = await upload.read()
+    # Process additional files
+    processed_files = []
+    for f in files:
+        content_bytes = await f.read()
+        try:
+            # Try decoding as text
+            decoded = content_bytes.decode("utf-8")
+            content = decoded
+        except UnicodeDecodeError:
+            # Binary file — encode as base64
+            encoded = base64.b64encode(content_bytes).decode("utf-8")
+            content = f"data:{f.content_type};base64,{encoded}"
 
-            # Check if this is the required questions.txt file
-            if field_name == "questions.txt":
-                try:
-                    questions_text = content_bytes.decode("utf-8").strip()
-                except Exception:
-                    return JSONResponse(status_code=400, content={"error": "questions.txt must be a UTF-8 text file."})
-                continue
-
-            # Try decoding as UTF-8 (for CSV, text, etc.)
-            try:
-                decoded_content = content_bytes.decode("utf-8")
-                file_content = decoded_content
-            except UnicodeDecodeError:
-                # Binary file like image — encode to base64
-                file_content = base64.b64encode(content_bytes).decode("utf-8")
-                file_content = f"data:{upload.content_type};base64,{file_content}"
-
-            files.append({
-                "field_name": field_name,
-                "filename": upload.filename,
-                "content_type": upload.content_type,
-                "content": file_content
-            })
-
-    if not questions_text:
-        return JSONResponse(status_code=400, content={"error": "questions.txt is required and must be a valid UTF-8 text file."})
-
+        processed_files.append({
+            "filename": f.filename,
+            "content_type": f.content_type,
+            "content": content
+        })
     # Task breakdown
     steps = task_breakdown(questions_text)
 
-    # Build file context for LLM
+    # Combine file contents
     file_context = "\n\n".join(
-        f"Filename: {f['filename']}\nContent:\n{f['content']}" for f in files
+        f"Filename: {f['filename']}\nContent:\n{f['content']}" for f in processed_files
     )
 
-    # Generate code
+    # LLM code generation and execution
     llm_generated_code = await query_llm_for_code(steps, tools, file_context)
-
-    # Run the code
     run_result = await run_python_code_with_correction(llm_generated_code)
 
     return run_result["output"]
+
+
+# async def upload_files(request: Request):
+#     form = await request.form()
+#     files = []
+#     questions_text = None
+
+#     for field_name, upload in form.items():
+#         if isinstance(upload, UploadFile):
+#             content_bytes = await upload.read()
+
+#             # Check if this is the required questions.txt file
+#             if field_name == "questions.txt":
+#                 try:
+#                     questions_text = content_bytes.decode("utf-8").strip()
+#                 except Exception:
+#                     return JSONResponse(status_code=400, content={"error": "questions.txt must be a UTF-8 text file."})
+#                 continue
+
+#             # Try decoding as UTF-8 (for CSV, text, etc.)
+#             try:
+#                 decoded_content = content_bytes.decode("utf-8")
+#                 file_content = decoded_content
+#             except UnicodeDecodeError:
+#                 # Binary file like image — encode to base64
+#                 file_content = base64.b64encode(content_bytes).decode("utf-8")
+#                 file_content = f"data:{upload.content_type};base64,{file_content}"
+
+#             files.append({
+#                 "field_name": field_name,
+#                 "filename": upload.filename,
+#                 "content_type": upload.content_type,
+#                 "content": file_content
+#             })
+
+#     if not questions_text:
+#         return JSONResponse(status_code=400, content={"error": "questions.txt is required and must be a valid UTF-8 text file."})
+
+    # # Task breakdown
+    # steps = task_breakdown(questions_text)
+
+    # # Build file context for LLM
+    # file_context = "\n\n".join(
+    #     f"Filename: {f['filename']}\nContent:\n{f['content']}" for f in files
+    # )
+
+    # # Generate code
+    # llm_generated_code = await query_llm_for_code(steps, tools, file_context)
+
+    # # Run the code
+    # run_result = await run_python_code_with_correction(llm_generated_code)
+
+    # return run_result["output"]
 
 # @app.post("/api/")
 # async def upload_files(files: List[UploadFile] = File(...)):
