@@ -288,7 +288,7 @@ async def upload_files(request: Request):
                     "content": file_content
                 })
     # print(files)
-    logger.info(f"files: {files}")
+    # logger.info(f"files: {files}")
     if not questions_text:
         logger.warning("questions.txt is empty or only whitespace.")
         return JSONResponse(status_code=400, content={"error": "questions.txt is required and must be a valid UTF-8 text file."})
