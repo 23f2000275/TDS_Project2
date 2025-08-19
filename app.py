@@ -309,6 +309,8 @@ async def upload_files(request: Request):
     # Run the code
     run_result = await run_python_code_with_correction(llm_generated_code)
 
+    logger.info(f"Full run result:\n{json.dumps(run_result, indent=2)}")
+
     return run_result["output"]
 
 # @app.post("/api/")
