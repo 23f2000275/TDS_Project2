@@ -260,7 +260,7 @@ async def upload_files(request: Request):
             # Check if this is the required questions.txt file
             if field_name in ["questions.txt" , 'question.txt']:
                 try:
-                    questions_text = content_bytes.decode("utf-8").strip()
+                    questions_text = content_bytes.decode("utf-8") # .strip()
                     logger.info(f"Received questions.txt:\n{questions_text}")
                     logger.info(f"questions.txt size: {len(content_bytes)} bytes")
                 except Exception:
@@ -288,6 +288,7 @@ async def upload_files(request: Request):
                     "content": file_content
                 })
     # print(files)
+    logger.info(f"files: {files}")
     if not questions_text:
         logger.warning("questions.txt is empty or only whitespace.")
         return JSONResponse(status_code=400, content={"error": "questions.txt is required and must be a valid UTF-8 text file."})
