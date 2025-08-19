@@ -11,7 +11,13 @@ from typing import List, Dict, Any
 import httpx
 import json
 # from playwright.async_api import async_playwright
+import logging
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(redirect_slashes=False)
 
@@ -250,28 +256,34 @@ async def upload_files(request: Request):
             content_bytes = await upload.read()
 
             # Check if this is the required questions.txt file
-            if field_name == "questions.txt" or field_name=='question.txt':
+            if field_name in ["questions.txt" , 'question.txt']:
                 try:
                     questions_text = content_bytes.decode("utf-8").strip()
+                    logger.info(f"Received questions.txt:\n{questions_text}")
                 except Exception:
+                    logger.error("questions.txt must be a UTF-8 text file.")
                     return JSONResponse(status_code=400, content={"error": "questions.txt must be a UTF-8 text file."})
                 continue
 
             # Try decoding as UTF-8 (for CSV, text, etc.)
-            try:
-                decoded_content = content_bytes.decode("utf-8")
-                file_content = decoded_content
-            except UnicodeDecodeError:
-                # Binary file like image — encode to base64
-                file_content = base64.b64encode(content_bytes).decode("utf-8")
-                file_content = f"data:{upload.content_type};base64,{file_content}"
+            else:
+                try:
+                    decoded_content = content_bytes.decode("utf-8")
+                    file_content = decoded_content
+                    preview = decoded_content[:200] + ("..." if len(decoded_content) > 200 else "")
+                except UnicodeDecodeError:
+                    # Binary file like image — encode to base64
+                    file_content = base64.b64encode(content_bytes).decode("utf-8")
+                    file_content = f"data:{upload.content_type};base64,{file_content}"
+                    preview = file_content[:200] + ("..." if len(file_content) > 200 else "")
+                logger.info(f"Received file: {upload.filename} ({upload.content_type}) - preview:\n{preview}")
 
-            files.append({
-                "field_name": field_name,
-                "filename": upload.filename,
-                "content_type": upload.content_type,
-                "content": file_content
-            })
+                files.append({
+                    "field_name": field_name,
+                    "filename": upload.filename,
+                    "content_type": upload.content_type,
+                    "content": file_content
+                })
     # print(files)
     if not questions_text:
         return JSONResponse(status_code=400, content={"error": "questions.txt is required and must be a valid UTF-8 text file."})
