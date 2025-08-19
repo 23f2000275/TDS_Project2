@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from google import genai
@@ -239,62 +239,115 @@ async def root():
     return {"message": "Hello! Send POST to /api/ with files."}
 
 @app.post("/api/")
-async def upload_files(files: List[UploadFile] = File(...)):
-    results = []
+async def upload_files(request: Request):
+    form = await request.form()
+    files = []
     questions_text = None
-    other_files = []
 
-    # Read all files first
-    for file in files:
-        content_type = file.content_type
-        content = await file.read()
+    for field_name, upload in form.items():
+        if isinstance(upload, UploadFile):
+            content_bytes = await upload.read()
 
-        if file.filename == "questions.txt":
-            questions_text = content.decode("utf-8")
-        # else:
-        #     other_files.append({
-        #         "filename": file.filename,
-        #         "content_type": content_type,
-        #         "content_bytes": content
-        #     })
-        else:
+            # Check if this is the required questions.txt file
+            if field_name == "questions.txt":
+                try:
+                    questions_text = content_bytes.decode("utf-8").strip()
+                except Exception:
+                    return JSONResponse(status_code=400, content={"error": "questions.txt must be a UTF-8 text file."})
+                continue
+
+            # Try decoding as UTF-8 (for CSV, text, etc.)
             try:
-                file_text = content.decode("utf-8", errors="ignore")
-                file_content=file_text
-            except Exception:
-                file_text = "[UNREADABLE FILE]"
-                file_content=file_text
+                decoded_content = content_bytes.decode("utf-8")
+                file_content = decoded_content
             except UnicodeDecodeError:
-            # Binary file like image, keep base64 encoded string for safe transport/storage
-                import base64
-                file_content = base64.b64encode(content).decode('utf-8')
-            other_files.append({
-                "filename": file.filename,
-                "content_type": content_type,
+                # Binary file like image — encode to base64
+                file_content = base64.b64encode(content_bytes).decode("utf-8")
+                file_content = f"data:{upload.content_type};base64,{file_content}"
+
+            files.append({
+                "field_name": field_name,
+                "filename": upload.filename,
+                "content_type": upload.content_type,
                 "content": file_content
             })
 
     if not questions_text:
-        return JSONResponse(status_code=400, content={"error": "questions.txt is required."})
+        return JSONResponse(status_code=400, content={"error": "questions.txt is required and must be a valid UTF-8 text file."})
 
-    task_text = questions_text.strip()
+    # Task breakdown
+    steps = task_breakdown(questions_text)
 
-    # Get task breakdown steps from GenAI
-    steps = task_breakdown(task_text)
+    # Build file context for LLM
     file_context = "\n\n".join(
-        f"Filename: {f['filename']}\nContent:\n{f['content']}" for f in other_files
+        f"Filename: {f['filename']}\nContent:\n{f['content']}" for f in files
     )
 
-    # Run the generated code with correction loop
-    # run_result = await asyncio.to_thread(run_python_code_with_correction, generated_code)
+    # Generate code
     llm_generated_code = await query_llm_for_code(steps, tools, file_context)
 
-# Run the code and retry on failure
+    # Run the code
     run_result = await run_python_code_with_correction(llm_generated_code)
 
-
-# Return JSON response
     return run_result["output"]
+
+# @app.post("/api/")
+# async def upload_files(files: List[UploadFile] = File(...)):
+#     results = []
+#     questions_text = None
+#     other_files = []
+
+#     # Read all files first
+#     for file in files:
+#         content_type = file.content_type
+#         content = await file.read()
+
+#         if file.filename == "questions.txt":
+#             questions_text = content.decode("utf-8")
+#         # else:
+#         #     other_files.append({
+#         #         "filename": file.filename,
+#         #         "content_type": content_type,
+#         #         "content_bytes": content
+#         #     })
+#         else:
+#             try:
+#                 file_text = content.decode("utf-8", errors="ignore")
+#                 file_content=file_text
+#             except Exception:
+#                 file_text = "[UNREADABLE FILE]"
+#                 file_content=file_text
+#             except UnicodeDecodeError:
+#             # Binary file like image, keep base64 encoded string for safe transport/storage
+#                 import base64
+#                 file_content = base64.b64encode(content).decode('utf-8')
+#             other_files.append({
+#                 "filename": file.filename,
+#                 "content_type": content_type,
+#                 "content": file_content
+#             })
+
+#     if not questions_text:
+#         return JSONResponse(status_code=400, content={"error": "questions.txt is required."})
+
+#     task_text = questions_text.strip()
+
+#     # Get task breakdown steps from GenAI
+#     steps = task_breakdown(task_text)
+#     file_context = "\n\n".join(
+#         f"Filename: {f['filename']}\nContent:\n{f['content']}" for f in other_files
+#     )
+
+#     # Run the generated code with correction loop
+#     # run_result = await asyncio.to_thread(run_python_code_with_correction, generated_code)
+#     llm_generated_code = await query_llm_for_code(steps, tools, file_context)
+
+# # Run the code and retry on failure
+#     run_result = await run_python_code_with_correction(llm_generated_code)
+
+
+# # Return JSON response
+#     return run_result["output"]
 
 
 # if __name__ == "__main__":
